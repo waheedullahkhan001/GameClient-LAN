@@ -1,0 +1,199 @@
+name: LAN Build
+
+# Builds Zero Hour with the win32-vcpkg preset, like build-toolchain.yml, but saves the vcpkg binary cache
+# right after configuring and allows a longer first run, so a cold dependency build can never be lost.
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main, lan, 'lan-*']
+    paths-ignore:
+      - '**.md'
+  workflow_dispatch:
+
+concurrency:
+  group: lan-build-${{ github.ref }}
+  # Never cancel a running build: a cold build is what fills the vcpkg cache for every later build.
+  cancel-in-progress: false
+
+env:
+  PRESET: win32-vcpkg
+  GAME: GeneralsMD
+
+jobs:
+  build:
+    name: Build GeneralsMD
+    runs-on: windows-2022
+    # A cold vcpkg cache builds every dependency from source, which can take hours the first time.
+    timeout-minutes: 330
+
+    env:
+      VCPKG_FILE_CACHE: ${{ github.workspace }}\vcpkg-bincache
+      VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}\vcpkg-bincache,readwrite
+      VCPKG_FEATURE_FLAGS: manifests,versions,binarycaching
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Cache CMake Dependencies
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: build\${{ env.PRESET }}\_deps
+          key: cmake-deps-${{ env.PRESET }}-${{ hashFiles('CMakePresets.json','cmake/**/*.cmake','**/CMakeLists.txt') }}
+
+      - name: Set Up VC2022 Environment
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
+        with:
+          arch: x86
+
+      - name: Compute vcpkg cache key
+        id: vcpkg_key
+        shell: pwsh
+        run: |
+          $baseline = (Get-Content vcpkg.json | ConvertFrom-Json)."builtin-baseline"
+          # Must match VCPKG_TARGET_TRIPLET in the win32-vcpkg presets.
+          $triplet = "x86-windows-static-md"
+          "baseline=$baseline" >> $env:GITHUB_OUTPUT
+          "triplet=$triplet" >> $env:GITHUB_OUTPUT
+
+      - name: Restore vcpkg binary cache
+        id: vcpkg_cache
+        uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ${{ github.workspace }}\vcpkg-bincache
+          key: vcpkg-bincache-v3-${{ runner.os }}-baseline${{ steps.vcpkg_key.outputs.baseline }}-${{ steps.vcpkg_key.outputs.triplet }}-${{ hashFiles('triplets/*.cmake') }}
+          restore-keys: |
+            vcpkg-bincache-v3-${{ runner.os }}-baseline${{ steps.vcpkg_key.outputs.baseline }}-
+            vcpkg-bincache-v3-${{ runner.os }}-
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@5e0cab206a5ea620130caf672fce3e4a6b5666a1 # v11.5
+        with:
+          runVcpkgInstall: false
+          doNotCache: true
+          vcpkgJsonGlob: vcpkg.json
+
+      - name: Configure vcpkg to use cached directory
+        shell: pwsh
+        run: |
+          $cacheDir = "${{ github.workspace }}\vcpkg-bincache"
+          New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
+          "VCPKG_DEFAULT_BINARY_CACHE=$cacheDir" >> $env:GITHUB_ENV
+          "VCPKG_BINARY_SOURCES=clear;files,$cacheDir,readwrite" >> $env:GITHUB_ENV
+          "VCPKG_OVERLAY_TRIPLETS=${{ github.workspace }}\triplets" >> $env:GITHUB_ENV
+          "VCPKG_INSTALL_OPTIONS=--x-abi-tools-use-exact-versions" >> $env:GITHUB_ENV
+
+      - name: Configure with CMake (installs vcpkg dependencies)
+        shell: pwsh
+        run: |
+          cmake --preset $env:PRESET `
+            -DRTS_BUILD_ZEROHOUR=ON -DRTS_BUILD_GENERALS=OFF `
+            -DRTS_BUILD_CORE_TOOLS=OFF -DRTS_BUILD_ZEROHOUR_TOOLS=OFF `
+            -DRTS_BUILD_CORE_EXTRAS=OFF -DRTS_BUILD_ZEROHOUR_EXTRAS=OFF
+
+      # Saved before compiling the game, so a failed game build still keeps the dependencies for next time.
+      - name: Save vcpkg binary cache
+        if: ${{ always() && steps.vcpkg_cache.outputs.cache-hit != 'true' }}
+        continue-on-error: true
+        uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ${{ github.workspace }}\vcpkg-bincache
+          key: vcpkg-bincache-v3-${{ runner.os }}-baseline${{ steps.vcpkg_key.outputs.baseline }}-${{ steps.vcpkg_key.outputs.triplet }}-${{ hashFiles('triplets/*.cmake') }}
+
+      - name: Build
+        shell: pwsh
+        run: cmake --build --preset $env:PRESET
+
+      - name: Collect Artifact
+        shell: pwsh
+        run: |
+          $buildDir = "build\$env:PRESET"
+          $artifactsDir = New-Item -ItemType Directory -Force -Path "$buildDir\$env:GAME\artifacts"
+          Get-ChildItem -Path "$buildDir\Core\Release","$buildDir\$env:GAME\Release" -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Extension -in @(".exe", ".dll", ".pdb") } |
+            Move-Item -Destination $artifactsDir -Verbose -Force
+          Get-ChildItem $artifactsDir
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: GeneralsMD-win32-vcpkg
+          path: build\${{ env.PRESET }}\${{ env.GAME }}\artifacts
+          retention-days: 30
+          if-no-files-found: error
+
+  lan-mesh-tests:
+    name: LAN Mesh Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ cmake ninja-build libssl-dev libprotobuf-dev protobuf-compiler iproute2 python3
+
+      - name: Build Test Player
+        run: tests/lan-mesh/build.sh
+
+      - name: Run Simulated LAN Games
+        run: sudo tests/lan-mesh/run.sh
+
+      - name: Upload Test Logs
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: lan-mesh-test-logs
+          path: tests/lan-mesh/.build/out
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: warn
+
+  release:
+    name: Publish LAN Release
+    needs: [build, lan-mesh-tests]
+    # Only builds that reached main become releases; the lan branch is for work in progress.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: lan-build-${{ github.run_number }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Download Build
+        run: gh run download "${{ github.run_id }}" --name GeneralsMD-win32-vcpkg --dir build
+
+      - name: Package
+        run: |
+          set -euo pipefail
+          ls -la build
+          mkdir package
+          cp build/GeneralsOnlineZH.exe package/GeneralsOnlineZH_LAN.exe
+          cp resources/lan/* package/
+          echo "LAN build ${{ github.run_number }} (commit ${GITHUB_SHA::7})" > package/BUILD.txt
+          (cd package && zip -9 -r "../GeneralsOnline-LAN-build${{ github.run_number }}.zip" .)
+
+      - name: Publish Release
+        run: |
+          cat > notes.md <<EOF
+          Experimental LAN build ${{ github.run_number }} from commit ${GITHUB_SHA::7} on \`${GITHUB_REF_NAME}\`.
+
+          Every player must use the same build number. Install steps are in README-LAN.txt inside the zip
+          and in [LAN.md](https://github.com/${GITHUB_REPOSITORY}/blob/${GITHUB_SHA}/LAN.md).
+          EOF
+          gh release create "$TAG" "GeneralsOnline-LAN-build${{ github.run_number }}.zip" \
+            --target "$GITHUB_SHA" \
+            --title "LAN build ${{ github.run_number }}" \
+            --notes-file notes.md \
+            --latest
