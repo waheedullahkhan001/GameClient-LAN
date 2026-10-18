@@ -1,3 +1,20 @@
+# GameClient-LAN: Generals Online networking for offline LAN games
+
+> **Status: experimental.** It builds and passes simulated LAN tests, but has not been tried in real matches yet.
+
+This fork of [Generals Online](https://github.com/GeneralsOnlineDevelopmentTeam/GameClient) tries to give the
+**Network** (LAN) menu the same networking the **Online** menu has, with no internet or server involved.
+It is meant for LAN parties and virtual LANs (ZeroTier, Radmin VPN, Tailscale and similar).
+
+- **Download:** the zip from the [latest release](https://github.com/waheedullahkhan001/GameClient-LAN/releases/latest).
+- **Branches:** `main` is Generals Online plus the LAN changes, and every build of it becomes a release.
+  `lan` is for work in progress.
+- [LAN.md](LAN.md) explains what changed, how to install it and how to report problems.
+
+Everything below this section is the original Generals Online / TheSuperHackers README.
+
+---
+
 [![GitHub Release](https://img.shields.io/github/v/release/TheSuperHackers/GeneralsGameCode?include_prereleases&sort=date&display_name=tag&style=flat&label=Release)](https://github.com/TheSuperHackers/GeneralsGameCode/releases)
 ![GitHub milestone details](https://img.shields.io/github/milestones/progress-percent/TheSuperHackers/GeneralsGameCode/3)
 ![GitHub milestone details](https://img.shields.io/github/milestones/progress-percent/TheSuperHackers/GeneralsGameCode/1)
