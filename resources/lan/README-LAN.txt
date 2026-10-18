@@ -17,6 +17,7 @@ Install
 
 Playing
 -------
+- Gameplay change: USA Supply Drop Zone cargo planes cannot be targeted.
 - Everyone, the host included, plays with GeneralsOnlineZH_LAN.exe from the same build.
 - In the game room, the chat says "Connected to <name>" for each player.
 - The host can only start once everyone is connected to everyone.

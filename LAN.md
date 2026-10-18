@@ -36,6 +36,10 @@ All changes are marked with `GO_LAN` in the code.
 - **In-game chat works in LAN games**, LAN games use your FPS limit setting like online games, and the **F10**
   network stats overlay (ping and connection quality per player) shows LAN connections too.
 
+**Gameplay change:** cargo planes sent by a USA Supply Drop Zone (all USA generals) cannot be targeted,
+so the supplies always arrive. This uses the game's own "masked" status, the one mines use.
+It applies to everything played with this exe, so LAN replays stay in sync.
+
 Things that already applied to LAN games in Generals Online, and still do: 60 Hz game logic, widescreen and camera
 fixes, larger network packets and the other client fixes.
 

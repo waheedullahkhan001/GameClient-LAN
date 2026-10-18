@@ -385,6 +385,14 @@ public:
 				//Adding this nifty flag allows enemy players to target it manually with weapons :)
 				transport->setScriptStatus( OBJECT_STATUS_SCRIPT_TARGETABLE );
 
+#if defined(GENERALS_ONLINE)
+				// GO_LAN: cargo planes sent by a USA Supply Drop Zone cannot be targeted, so the supplies always arrive
+				if (primaryObj->isKindOf(KINDOF_FS_SUPPLY_DROPZONE))
+				{
+					transport->maskObject(TRUE);
+				}
+#endif
+
 				if ( m_delayDeliveryFramesMax > 0 )
 				{
 					transport->setDisabledUntil( DISABLED_DEFAULT, TheGameLogic->getFrame() + GameLogicRandomValue(0, m_delayDeliveryFramesMax) );
