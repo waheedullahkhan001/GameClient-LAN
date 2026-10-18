@@ -56,6 +56,7 @@
 #include "GameNetwork/LANAPI.h"
 #include "GameNetwork/IPEnumeration.h"
 #include "GameNetwork/LANAPICallbacks.h"
+#include "GameNetwork/GeneralsOnline/LanMesh.h"
 #include "Common/MultiplayerSettings.h"
 #include "GameClient/GameText.h"
 #include "GameNetwork/GUIUtil.h"
@@ -316,6 +317,26 @@ void StartPressed()
 		UnicodeString text;
 		text.format(TheGameText->fetch("GUI:SandboxMode"));
 			TheLAN->OnChat(L"SYSTEM", TheLAN->GetLocalIP(), text, LANAPI::LANCHAT_SYSTEM);
+	}
+
+	// GO_LAN: like the online lobby's full mesh check, only start once every player can reach every other player
+	LanMesh* mesh = LanMesh::Get();
+	std::vector<UnicodeString> meshProblems;
+	if (mesh == nullptr)
+	{
+		meshProblems.push_back(UnicodeString(L"Cannot start: the LAN connection service is not running."));
+	}
+	else
+	{
+		mesh->isReadyToStart(myGame, meshProblems);
+	}
+	if (!meshProblems.empty())
+	{
+		for (const UnicodeString& problem : meshProblems)
+		{
+			TheLAN->OnChat(L"SYSTEM", TheLAN->GetLocalIP(), problem, LANAPI::LANCHAT_SYSTEM);
+		}
+		return;
 	}
 
 	// see if everyone's accepted and count the number of players in the game

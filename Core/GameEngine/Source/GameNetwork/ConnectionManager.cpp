@@ -56,6 +56,7 @@
 #include "WWLib/TARGA.h"
 
 #include "../NextGenTransport.h"
+#include "../LanMesh.h"
 #include "../NetworkMesh.h"
 #include "../ngmp_interfaces.h"
 
@@ -1545,6 +1546,11 @@ void ConnectionManager::updateRunAhead(Int oldRunAhead, Int frameRate, Bool didS
 					}
 				}
 			}
+			else if (TheLAN != nullptr && LanMesh::Get() != nullptr && LanMesh::Get()->getNumPeers() == 0)
+			{
+				// GO_LAN: same for a LAN game with no other humans
+				newRunAhead = 0;
+			}
 #endif
 
 			msg->setRunAhead(newRunAhead);
@@ -1658,6 +1664,12 @@ Real ConnectionManager::getMaximumLatency()
 		}
 	}
 
+	// GO_LAN: LAN games use the online service's model 2, the highest of the original and the historic Valve latency
+	if (TheNGMPGame == nullptr && TheLAN != nullptr && LanMesh::Get() != nullptr)
+	{
+		Real maxLanLatency = LanMesh::Get()->getMaximumHistoricalLatency() / 1000.f;
+		return maxLatency > maxLanLatency ? maxLatency : maxLanLatency;
+	}
 
 	if (latencyLogicModel == 0)
 	{
@@ -1793,8 +1805,14 @@ void ConnectionManager::initTransport() {
 	{
 		m_transport = new NextGenTransport;
 	}
+	else if (LanMesh::Get() != nullptr)
+	{
+		// GO_LAN: LAN games use GameNetworkingSockets too, connected directly by IP
+		m_transport = new LanMeshTransport;
+	}
 	else
 	{
+		NetworkLog(ELogVerbosity::LOG_RELEASE, "[LAN MESH] No LAN mesh at game start, using the legacy UDP transport");
 		m_transport = new UDPTransport;
 	}
 #else

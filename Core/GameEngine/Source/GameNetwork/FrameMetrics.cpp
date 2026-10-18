@@ -34,6 +34,8 @@
 #include "../NGMP_include.h"
 #include "../NetworkMesh.h"
 #include "../NGMP_interfaces.h"
+#include "../LanMesh.h"
+#include "GameNetwork/LANAPICallbacks.h"
 
 FrameMetrics::FrameMetrics()
 {
@@ -105,6 +107,11 @@ void FrameMetrics::init() {
 		}
 
 		m_averageLatency = (Real)((Real)totalLatency / 1000.f) / (Real)connections.size();
+	}
+	else if (TheNGMPGame == nullptr && TheLAN != nullptr && LanMesh::Get() != nullptr && LanMesh::Get()->getNumConnectedPeers() > 0)
+	{
+		// GO_LAN: LAN connections are also formed in the lobby, so start from the measured latency
+		m_averageLatency = (Real)LanMesh::Get()->getAverageLatency() / 1000.f;
 	}
 	else
 	{

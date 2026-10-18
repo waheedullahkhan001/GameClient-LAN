@@ -36,6 +36,7 @@
 
 #include "GameNetwork/LANAPICallbacks.h"
 #include "../OnlineServices_Init.h"
+#include "../LanMesh.h"
 
 extern DWORD TheMessageTime;
 
@@ -110,6 +111,9 @@ void Win32GameEngine::update()
 			{
 				NGMP_OnlineServicesManager::GetInstance()->Tick();
 			}
+
+			// GO_LAN: keep the LAN game connections serviced while alt-tabbed too
+			LanMesh::TickGlobal();
 
 			// If we are running a multiplayer game, keep running the logic.
 			// There is code in the client to skip client redraw if we are

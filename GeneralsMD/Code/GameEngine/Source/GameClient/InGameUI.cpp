@@ -97,6 +97,8 @@
 #include "../NGMP_interfaces.h"
 #include "../OnlineServices_Init.h"
 #include "../NetworkMesh.h"
+#include "../LanMesh.h"
+#include "GameNetwork/LANAPICallbacks.h"
 #include "GameNetwork/NetworkDefs.h"
 #include "GameNetwork/NetworkInterface.h"
 extern NetworkInterface * TheNetwork;
@@ -7176,6 +7178,58 @@ void InGameUI::drawGameTime()
 	// draw connections
 	if (NGMP_OnlineServicesManager::IsAdvancedNetworkStatsEnabled())
 	{
+		int i = 0;
+
+		// GO_LAN: draws one connection's stats line, shared by online and LAN games
+		auto drawConnectionStats = [&](ISteamNetworkingSockets* pSteamNetSockets, HSteamNetConnection hConnection, const WideChar* displayName,
+			Int slotIndex, bool bIPv4, bool bDirect)
+		{
+			const int k_nLanes = 1;
+			SteamNetConnectionRealTimeStatus_t status;
+			SteamNetConnectionRealTimeLaneStatus_t laneStatus[k_nLanes];
+
+			EResult res = pSteamNetSockets->GetConnectionRealTimeStatus(hConnection, &status, k_nLanes, laneStatus);
+			if (res == k_EResultNoConnection)
+			{
+				return;
+			}
+
+			int avgFPS = TheNetwork->getSlotAverageFPS(slotIndex);
+
+			UnicodeString netString;
+			netString.format(L"\n[usr %s|%d][%hs %hs][AVGFPS: %d] Lat: %i, QL: %.2f, QR: %.2f OutP/s: %.2f, OutB/s: %.2f, InP/s: %.2f, InB/s: %.2f, SR %i PU: %d, PR: %d, NACK: %d, QT: %I64d",
+				displayName,
+				(int)res,
+				bIPv4 ? "IPv4" : "IPv6",
+				bDirect ? "Direct" : "Relay",
+				avgFPS,
+				status.m_nPing,
+				status.m_flConnectionQualityLocal,
+				status.m_flConnectionQualityRemote,
+				status.m_flOutPacketsPerSec,
+				status.m_flOutBytesPerSec,
+				status.m_flInPacketsPerSec,
+				status.m_flInBytesPerSec,
+				status.m_nSendRateBytesPerSecond,
+				status.m_cbPendingUnreliable,
+				status.m_cbPendingReliable,
+				status.m_cbSentUnackedReliable,
+				status.m_usecQueueTime);
+
+			int w, h;
+			m_gameTimeString->getSize(&w, &h);
+
+			bool bIsHighQuality = true;
+			if (avgFPS < (GENERALS_ONLINE_HIGH_FPS_LIMIT - 1) || status.m_cbSentUnackedReliable >= 1000 || (status.m_flConnectionQualityLocal != -1.f && status.m_flConnectionQualityLocal < 1.f) || (status.m_flConnectionQualityRemote != -1.f && status.m_flConnectionQualityRemote < 1.f))
+			{
+				bIsHighQuality = false;
+			}
+
+			m_gameTimeString->setText(netString);
+			m_gameTimeString->draw(0, 500 + (i * h / 2), bIsHighQuality ? m_colorGood : m_colorBad, m_gameTimeDropColor);
+			++i;
+		};
+
 		if (TheNGMPGame != nullptr)
 		{
 			NetworkMesh* pMesh = NGMP_OnlineServicesManager::GetNetworkMesh();
@@ -7192,7 +7246,6 @@ void InGameUI::drawGameTime()
 					return;
 				}
 
-				int i = 0;
 				auto& allConnections = pMesh->GetAllConnections();
 				if (allConnections.empty())
 				{
@@ -7208,59 +7261,36 @@ void InGameUI::drawGameTime()
 
 					LobbyMemberEntry lobbyMember = pLobbyInterface->GetRoomMemberFromID(connection.first);
 
-					const int k_nLanes = 1;
-					SteamNetConnectionRealTimeStatus_t status;
-					SteamNetConnectionRealTimeLaneStatus_t laneStatus[k_nLanes];
-					
-					if (!TheNetwork)
+					if (!TheNetwork || lobbyMember.display_name.empty())
 					{
 						continue;
 					}
 
-					EResult res = pSteamNetSockets->GetConnectionRealTimeStatus(connection.second.m_hSteamConnection, &status, k_nLanes, laneStatus);
-
-					if (res == k_EResultNoConnection || lobbyMember.display_name.empty())
-					{
-						continue;
-					}
-
-					int avgFPS = TheNetwork->getSlotAverageFPS(lobbyMember.m_SlotIndex);
-
-					UnicodeString netString;
-					netString.format(L"\n[usr %s|%d][%hs %hs][AVGFPS: %d] Lat: %i, QL: %.2f, QR: %.2f OutP/s: %.2f, OutB/s: %.2f, InP/s: %.2f, InB/s: %.2f, SR %i PU: %d, PR: %d, NACK: %d, QT: %I64d",
-						from_utf8(lobbyMember.display_name).c_str(),
-						(int)res,
-						connection.second.IsIPV4() ? "IPv4" : "IPv6",
-						connection.second.IsDirect() ? "Direct" : "Relay",
-						avgFPS,
-						status.m_nPing,
-						status.m_flConnectionQualityLocal,
-						status.m_flConnectionQualityRemote,
-						status.m_flOutPacketsPerSec,
-						status.m_flOutBytesPerSec,
-						status.m_flInPacketsPerSec,
-						status.m_flInBytesPerSec,
-						status.m_nSendRateBytesPerSecond,
-						status.m_cbPendingUnreliable,
-						status.m_cbPendingReliable,
-						status.m_cbSentUnackedReliable,
-						status.m_usecQueueTime);
-
-					int w, h;
-					m_gameTimeString->getSize(&w, &h);
-
-					bool bIsHighQuality = true;
-					if (avgFPS < (GENERALS_ONLINE_HIGH_FPS_LIMIT - 1) || status.m_cbSentUnackedReliable >= 1000 || (status.m_flConnectionQualityLocal != -1.f && status.m_flConnectionQualityLocal < 1.f) || (status.m_flConnectionQualityRemote != -1.f && status.m_flConnectionQualityRemote < 1.f))
-					{
-						bIsHighQuality = false;
-					}
-
-					m_gameTimeString->setText(netString);
-					m_gameTimeString->draw(0, 500 + (i * h / 2), bIsHighQuality ? m_colorGood : m_colorBad, m_gameTimeDropColor);
-					++i;
+					drawConnectionStats(pSteamNetSockets, connection.second.m_hSteamConnection, from_utf8(lobbyMember.display_name).c_str(),
+						lobbyMember.m_SlotIndex, connection.second.IsIPV4(), connection.second.IsDirect());
 				}
 			}
 
+		}
+		else if (TheGameLogic->isInLanGame() && TheLAN != nullptr && TheLAN->GetMyGame() != nullptr && LanMesh::Get() != nullptr && TheNetwork != nullptr)
+		{
+			// GO_LAN: the same stats for LAN games, which are always direct IPv4 connections
+			ISteamNetworkingSockets* pSteamNetSockets = SteamNetworkingSockets();
+			LANGameInfo* game = TheLAN->GetMyGame();
+			std::vector<LanMesh::PeerConnection> peers;
+			LanMesh::Get()->getPeerConnections(peers);
+
+			for (const LanMesh::PeerConnection& peer : peers)
+			{
+				for (Int slot = 0; slot < MAX_SLOTS && pSteamNetSockets != nullptr; ++slot)
+				{
+					if (game->getConstLANSlot(slot)->getIP() == peer.slotIP)
+					{
+						drawConnectionStats(pSteamNetSockets, peer.connection, peer.name.str(), slot, true, true);
+						break;
+					}
+				}
+			}
 		}
 	}
 

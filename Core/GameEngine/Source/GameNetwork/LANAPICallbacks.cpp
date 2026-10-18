@@ -46,6 +46,9 @@
 #include "GameNetwork/FileTransfer.h"
 #include "GameNetwork/LANAPICallbacks.h"
 #include "GameNetwork/networkutil.h"
+#if defined(GENERALS_ONLINE)
+#include "GameNetwork/GeneralsOnline/LanMesh.h"
+#endif
 
 LANAPI *TheLAN = nullptr;
 extern Bool LANbuttonPushed;
@@ -214,8 +217,19 @@ void LANAPI::OnGameStart()
 		TheNetwork = nullptr;
 
 		// Time to initialize TheNetwork for this game.
+#if defined(GENERALS_ONLINE)
+		// GO_LAN: same network tuning as online games
+		LanMesh::ApplyNetworkTuning();
+#endif
 		TheNetwork = NetworkInterface::createNetwork();
 		TheNetwork->init();
+#if defined(GENERALS_ONLINE)
+		// GO_LAN: like online games, start from the latency measured in the lobby instead of guessing
+		if (LanMesh::Get() != nullptr)
+		{
+			TheNetwork->SeedLatencyData(LanMesh::Get()->getMaximumHistoricalLatency());
+		}
+#endif
 		TheNetwork->setLocalAddress(m_localIP, 8088);
 		TheNetwork->initTransport();
 

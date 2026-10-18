@@ -141,11 +141,22 @@ public:
 
 	static bool IsInitialized() { return s_bInitialized; }
 
+	// GO_LAN: inits with a LAN-only identity unless the online services already did. Pair with ReleaseLAN.
+	static bool EnsureInitializedForLAN(UnsignedInt localIP);
+
+	// GO_LAN: shuts the library down again if the LAN path was the one that started it.
+	static void ReleaseLAN();
+
+	// GO_LAN: changes every time the library starts, so holders of connection handles can tell they went stale.
+	static UnsignedInt GetGeneration() { return s_generation; }
+
 	// Drives SteamNetworkingSockets()->RunCallbacks(), independent of NetworkMesh lifetime.
 	static void Tick();
 
 private:
 	static bool s_bInitialized;
+	static bool s_bInitializedForLAN;
+	static UnsignedInt s_generation;
 };
 
 class NetworkMesh

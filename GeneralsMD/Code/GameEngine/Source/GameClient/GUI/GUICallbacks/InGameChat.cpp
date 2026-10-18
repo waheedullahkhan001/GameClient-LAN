@@ -203,7 +203,8 @@ void ToggleInGameChat( Bool immediate )
 		return;
 
 #if defined(GENERALS_ONLINE)
-	if (TheNGMPGame == nullptr)
+	// GO_LAN: LAN games have in-game chat too
+	if (TheNGMPGame == nullptr && !TheGameLogic->isInLanGame())
 #else
 	if (!TheGameInfo->isMultiPlayer() && TheGlobalData->m_netMinPlayers)
 #endif

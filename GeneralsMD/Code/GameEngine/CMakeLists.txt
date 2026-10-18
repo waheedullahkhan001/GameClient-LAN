@@ -1159,6 +1159,7 @@ set(GAMEENGINE_SRC
     Include/GameNetwork/GeneralsOnline/HTTP/HTTPManager.h
     Include/GameNetwork/GeneralsOnline/HTTP/HTTPRequest.h
     Include/GameNetwork/GeneralsOnline/NextGenTransport.h
+    Include/GameNetwork/GeneralsOnline/LanMesh.h
     Include/GameNetwork/GeneralsOnline/PluginInterfaces.h
     Source/GameNetwork/GeneralsOnline/DiscordRichPresence.cpp
     Source/GameNetwork/GeneralsOnline/NGMP_Helpers.cpp
@@ -1176,6 +1177,7 @@ set(GAMEENGINE_SRC
     Source/GameNetwork/GeneralsOnline/OnlineServices_SocialInterface.cpp
     Source/GameNetwork/GeneralsOnline/OnlineServices_MatchmakingInterface.cpp
     Source/GameNetwork/GeneralsOnline/NextGenTransport.cpp
+    Source/GameNetwork/GeneralsOnline/LanMesh.cpp
     Source/GameNetwork/GeneralsOnline/NetworkBitstream.cpp
     Source/GameNetwork/GeneralsOnline/PluginInterfaces.cpp
 )

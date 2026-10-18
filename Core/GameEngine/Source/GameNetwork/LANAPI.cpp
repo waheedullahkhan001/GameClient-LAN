@@ -37,6 +37,9 @@
 #include "GameClient/MapUtil.h"
 #include "Common/UserPreferences.h"
 #include "GameLogic/GameLogic.h"
+#if defined(GENERALS_ONLINE)
+#include "GameNetwork/GeneralsOnline/LanMesh.h"
+#endif
 
 
 static const UnsignedShort lobbyPort = 8086; ///< This is the UDP port used by all LANAPI communication
@@ -598,6 +601,19 @@ void LANAPI::update()
 	{
 		//		DEBUG_LOG(("m_gameStartTime=%d, now=%d, m_gameStartSeconds=%d", m_gameStartTime, now, m_gameStartSeconds));
 		ResetGameStartTimer();
+#if defined(GENERALS_ONLINE)
+		// GO_LAN: a connection can drop during the countdown, so check the full mesh again before starting
+		std::vector<UnicodeString> problems;
+		if (m_currentGame != nullptr && LanMesh::Get() != nullptr && !LanMesh::Get()->isReadyToStart(m_currentGame, problems))
+		{
+			for (const UnicodeString& problem : problems)
+			{
+				OnChat(L"SYSTEM", m_localIP, problem, LANCHAT_SYSTEM);
+			}
+			LANEnableStartButton(TRUE);
+		}
+		else
+#endif
 		RequestGameStart();
 	}
 

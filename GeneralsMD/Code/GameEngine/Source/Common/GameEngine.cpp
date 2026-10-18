@@ -113,6 +113,7 @@
 // GENERALS ONLINE
 #include "../OnlineServices_Init.h"
 #include "GameNetwork/GeneralsOnline/DiscordRichPresence.h"
+#include "GameNetwork/GeneralsOnline/LanMesh.h"
 #include "GameNetwork/GeneralsOnline/OnlineServices_LobbyInterface.h"
 #include "GameNetwork/GameSpyOverlay.h"
 #include <chrono>
@@ -317,6 +318,9 @@ GameEngine::~GameEngine()
 {
 	delete m_discordRichPresence;
 	m_discordRichPresence = nullptr;
+
+	// GO_LAN: close LAN game connections that are still open when the game exits
+	LanMesh::ShutdownGlobal();
 
 	//extern std::vector<std::string>	preloadTextureNamesGlobalHack;
 	//preloadTextureNamesGlobalHack.clear();
@@ -979,7 +983,8 @@ void GameEngine::update()
 
 #if defined(GENERALS_ONLINE_HIGH_FPS_RENDER)
 			// NGMP_NOTE: Lock the shellmap to 30fps until we fix everything
-			if (TheNGMPGame != nullptr && TheGameLogic->isInGame() && !TheShell->isShellActive())
+			// GO_LAN: LAN games use the player's FPS limit setting too, like online games
+			if ((TheNGMPGame != nullptr || TheGameLogic->isInLanGame()) && TheGameLogic->isInGame() && !TheShell->isShellActive())
 			{
 				TheFramePacer->setFramesPerSecondLimit(NGMP_OnlineServicesManager::Settings.Graphics_GetFPSLimit());
 				TheWritableGlobalData->m_useFpsLimit = NGMP_OnlineServicesManager::Settings.Graphics_GetFPSLimit();
@@ -997,6 +1002,9 @@ void GameEngine::update()
 			TheAudio->UPDATE();
 			TheGameClient->UPDATE();
 			TheMessageStream->propagateMessages();
+
+			// GO_LAN: services the LAN game connections, in the game room and during the match
+			LanMesh::TickGlobal();
 
             if (TheNetwork != nullptr)
             {

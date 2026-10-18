@@ -599,9 +599,17 @@ public:
 
 
 bool NetworkMeshLibrary::s_bInitialized = false;
+bool NetworkMeshLibrary::s_bInitializedForLAN = false;
+UnsignedInt NetworkMeshLibrary::s_generation = 0;
 
 bool NetworkMeshLibrary::EnsureInitialized(int64_t userID)
 {
+	// GO_LAN: a library started for a LAN game has the wrong identity for online play, so restart it with ours.
+	if (s_bInitialized && s_bInitializedForLAN)
+	{
+		Shutdown();
+	}
+
 	// lives until the online services shut down; a new login always follows a full teardown
 	if (s_bInitialized)
 	{
@@ -627,6 +635,7 @@ bool NetworkMeshLibrary::EnsureInitialized(int64_t userID)
 	}
 
 	s_bInitialized = true;
+	++s_generation;
 
 	// Every STUN entry must resolve to a distinct address, or the native ICE client retries
 	// duplicates forever.
@@ -662,6 +671,52 @@ void NetworkMeshLibrary::Shutdown()
 	GameNetworkingSockets_Kill();
 
 	s_bInitialized = false;
+	s_bInitializedForLAN = false;
+}
+
+bool NetworkMeshLibrary::EnsureInitializedForLAN(UnsignedInt localIP)
+{
+	if (s_bInitialized)
+	{
+		return true;
+	}
+
+	// LAN peers are identified by their hello message, the identity only has to be unique.
+	char identityName[32];
+	snprintf(identityName, sizeof(identityName), "lan_%08X_%08X", localIP, (UnsignedInt)timeGetTime());
+
+	SteamNetworkingIdentity identityLocal;
+	identityLocal.Clear();
+	identityLocal.SetGenericString(identityName);
+
+	SteamDatagramErrMsg errMsg;
+	if (!GameNetworkingSockets_Init(&identityLocal, errMsg))
+	{
+		NetworkLog(ELogVerbosity::LOG_RELEASE, "NetworkMeshLibrary::EnsureInitializedForLAN: GameNetworkingSockets_Init failed. %s", errMsg);
+		return false;
+	}
+
+	s_bInitialized = true;
+	s_bInitializedForLAN = true;
+	++s_generation;
+
+	ESteamNetworkingSocketsDebugOutputType logType = NGMP_OnlineServicesManager::Settings.Debug_VerboseLogging()
+		? ESteamNetworkingSocketsDebugOutputType::k_ESteamNetworkingSocketsDebugOutputType_Debug
+		: ESteamNetworkingSocketsDebugOutputType::k_ESteamNetworkingSocketsDebugOutputType_Msg;
+	SteamNetworkingUtils()->SetDebugOutputFunction(logType, [](ESteamNetworkingSocketsDebugOutputType nType, const char* pszMsg)
+		{
+			NetworkLog(ELogVerbosity::LOG_RELEASE, "[STEAM NETWORKING LOGFUNC] %s", pszMsg);
+		});
+
+	return true;
+}
+
+void NetworkMeshLibrary::ReleaseLAN()
+{
+	if (s_bInitialized && s_bInitializedForLAN)
+	{
+		Shutdown();
+	}
 }
 
 void NetworkMeshLibrary::Tick()

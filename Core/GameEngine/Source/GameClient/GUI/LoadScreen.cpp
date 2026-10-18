@@ -90,6 +90,7 @@
 #include "GameNetwork/RankPointValue.h"
 #include "../OnlineServices_Init.h"
 #include "../OnlineServices_StatsInterface.h"
+#include "../LanMesh.h"
 
 //-----------------------------------------------------------------------------
 // DEFINES ////////////////////////////////////////////////////////////////////
@@ -1468,6 +1469,9 @@ void MultiPlayerLoadScreen::update( Int percent )
 			TheGameLogic->processProgress( TheGameInfo->getLocalSlotNum(), percent );
 	}
 
+	// GO_LAN: GameEngine::update does not run while loading, so service the LAN game connections here
+	LanMesh::TickGlobal();
+
 	//GadgetProgressBarSetProgress(m_progressBars[TheNetwork->getLocalPlayerID()], percent );
 
 	TheMouse->setCursorTooltip(UnicodeString::TheEmptyString);
@@ -2034,6 +2038,8 @@ void MapTransferLoadScreen::update( Int percent )
 	{
 		NGMP_OnlineServicesManager::GetInstance()->Tick();
 	}
+	// GO_LAN: the same for the LAN game connections
+	LanMesh::TickGlobal();
 
 	TheMouse->setCursorTooltip(UnicodeString::TheEmptyString);
 
